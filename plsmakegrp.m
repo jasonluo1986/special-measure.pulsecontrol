@@ -208,27 +208,30 @@ for k = 1:length(name)
                 % of source group. Need to reconstruct indices as used for file names by inverting unique
                 [pind, pind, pind] = unique(pg.pulseind);
                 
-                for i = 1:length(pg.pulseind)
-                    if j == 1 % first pf determines size
-                        grpdef.pulses(i).data.wf = zeros(nchan, size(pg.pulses(pind(i)).data.wf, 2));
-                        grpdef.pulses(i).data.marker = zeros(nchan, size(pg.pulses(pind(i)).data.wf, 2), 'uint8');
-                        grpdef.pulses(i).xval = [];
-                        grpdef.pulses(i).data.readout = pg.pulses(pind(i)).data.readout; % a bit of a hack.
-                    else
-                        for ii=1:size(pg.pulses(pind(i)).data.readout,1)                            
-                            roi=find(grpdef.pulses(pind(i)).data.readout(:,1) == pg.pulses(pind(i)).data.readout(ii,1));
-                            if ~isempty(roi)
-                                grpdef.pulses(pind(i)).data.readout(roi(1),2:3) = pg.pulses(pind(i)).data.readout(ii,2:3);
-                            else
-                                grpdef.pulses(pind(i)).data.readout(end+1,:) = pg.pulses(pind(i)).data.readout(ii,1:3);
+                for c = 1:length(pg.pulses(1).data)
+                    for i = 1:length(pg.pulseind)
+                        if j == 1 % first pf determines size
+                            grpdef.pulses(i).data(c).wf = zeros(nchan, size(pg.pulses(pind(i)).data(c).wf, 2));
+                            grpdef.pulses(i).data(c).marker = zeros(nchan, size(pg.pulses(pind(i)).data(c).wf, 2), 'uint8');
+                            grpdef.pulses(i).data(c).readout = pg.pulses(pind(i)).data(c).readout; % a bit of a hack.
+                            grpdef.pulses(i).data(c).clk = pg.pulses(pind(i)).data(c).clk;
+                            grpdef.pulses(i).xval = [];
+                        else
+                            for ii=1:size(pg.pulses(pind(i)).data(c).readout,1)
+                                roi=find(grpdef.pulses(pind(i)).data(c).readout(:,1) == pg.pulses(pind(i)).data(c).readout(ii,1));
+                                if ~isempty(roi)
+                                    grpdef.pulses(pind(i)).data(c).readout(roi(1),2:3) = pg.pulses(pind(i)).data(c).readout(ii,2:3);
+                                else
+                                    grpdef.pulses(pind(i)).data(c).readout(end+1,:) = pg.pulses(pind(i)).data(c).readout(ii,1:3);
+                                end
                             end
                         end
+                        
+                        grpdef.pulses(i).data(c).wf(chan, :) = grpdef.pulses(i).data(c).wf(chan, :) + pg.pulses(pind(i)).data(c).wf(mask, :);
+                        grpdef.pulses(i).data(c).marker(markchan, :) = bitor(grpdef.pulses(i).data(c).marker(markchan, :), ...
+                            pg.pulses(pind(i)).data(c).marker(markmask, :));
+                        grpdef.pulses(i).xval = [grpdef.pulses(i).xval, pg.pulses(pind(i)).xval];
                     end
-                    
-                    grpdef.pulses(i).data.wf(chan, :) = grpdef.pulses(i).data.wf(chan, :) + pg.pulses(pind(i)).data.wf(mask, :);
-                    grpdef.pulses(i).data.marker(markchan, :) = bitor(grpdef.pulses(i).data.marker(markchan, :), ...
-                        pg.pulses(pind(i)).data.marker(markmask, :));
-                    grpdef.pulses(i).xval = [grpdef.pulses(i).xval, pg.pulses(pind(i)).xval];
                 end
             end
             
@@ -241,28 +244,7 @@ for k = 1:length(name)
             [grpdef.pulses.format] = deal('wf');
             
             %grpdef = rmfield(grpdef, 'groups', 'matrix', 'offset');
-        case 'grpcat'
-            
-            groupdef = grpdef.pulses;
-            grpdef.pulses = struct([]);
-            
-            nchan = size(grpdef.matrix, 2); % # input channels to matrix
-            
-            %         if ~isfield(groupdef, 'chan')
-            %             [groupdef.chan] = deal(length(groupdef.groups), nan(nchan));
-            %         end
-            %
-            %         if ~isfield(groupdef, 'markchan')
-            %             groupdef.markchan = groupdef.chan;
-            %         end
-            
-            for j = 1:length(groupdef.groups)
-                pg = plsmakegrp(groupdef.groups{j});
-                grpdef.pulses = [grpdef.pulses pg.pulses];
-            end
-            [grpdef.pulses.format] = deal('wf');
-            ind=1:length(grpdef.pulses);
-            %grpdef = rmfield(grpdef, 'groups', 'matrix', 'offset');
+    
         otherwise
             error('Group control %s not understood.\n',grpdef.ctrl);
     end
@@ -272,24 +254,26 @@ for k = 1:length(name)
             grpdef.pulses(i).xval = [grpdef.xval grpdef.pulses(i).xval];
         end
     end
-    
+        
     for i = 1:length(ind)
-        grpdef.pulses(i).data.wf = grpdef.matrix * (grpdef.pulses(i).data.wf + ...
-            repmat(grpdef.offset, 1, size(grpdef.pulses(i).data.wf, 2)));
-        if isfield(grpdef, 'trafofn') && ~isempty(grpdef.trafofn)
-            wf=grpdef.pulses(i).data.wf;
-            fn=grpdef.trafofn.func;
-            args=grpdef.trafofn.args;
-            for matlab_scoping_sucks=1:size(grpdef.pulses(i).data.wf,1)
-                wf(matlab_scoping_sucks,:) = ...
-                    fn(wf(matlab_scoping_sucks,:),matlab_scoping_sucks,args);
+        for c=1:length(grpdef.pulses(i).data)
+            grpdef.pulses(i).data(c).wf = grpdef.matrix * (grpdef.pulses(i).data(c).wf + ...
+                repmat(grpdef.offset, 1, size(grpdef.pulses(i).data(c).wf, 2)));
+            if isfield(grpdef, 'trafofn') && ~isempty(grpdef.trafofn)
+                wf=grpdef.pulses(i).data(c).wf;
+                fn=grpdef.trafofn.func;
+                args=grpdef.trafofn.args;
+                for matlab_scoping_sucks=1:size(wf,1)
+                    wf(matlab_scoping_sucks,:) = ...
+                        fn(wf(matlab_scoping_sucks,:),matlab_scoping_sucks,args);
+                end
+                grpdef.pulses(i).data(c).wf=wf;
             end
-            grpdef.pulses(i).data.wf=wf;
-        end
-        if isfield(grpdef, 'markmap')
-            md = grpdef.pulses(i).data.marker;
-            grpdef.pulses(i).data.marker = zeros(size(grpdef.matrix, 1), size(md, 2), 'uint8');
-            grpdef.pulses(i).data.marker(grpdef.markmap(2, :), :) = md(grpdef.markmap(1, :), :);
+            if isfield(grpdef, 'markmap')
+                md = grpdef.pulses(i).data(c).marker;
+                grpdef.pulses(i).data(c).marker = zeros(size(grpdef.matrix, 1), size(md, 2), 'uint8');
+                grpdef.pulses(i).data(c).marker(grpdef.markmap(2, :), :) = md(grpdef.markmap(1, :), :);
+            end
         end
     end
     
@@ -304,16 +288,14 @@ for k = 1:length(name)
                 plsplot(grpdef.pulses,[],ctrl);
             end
             
-        case 'check'
-            
+        case 'check'          
             for i = 1:length(ind)
                 over=0;
-                if length(awgdata.scale) == 1 
-                    over = any(abs(grpdef.pulses(i).data.wf(:)) > awgdata.scale);
-                else
-                  for l=1:length(awgdata.scale)
-                      over = over || any(abs(grpdef.pulses(i).data.wf(l,:)) > awgdata.scale);
-                  end                  
+                for a=1:length(awgdata)
+                  for c=1:length(grpdef.pulses(i).data)
+                      s=min(awgdata(a).scale);
+                      over = over || any(abs(grpdef.pulses(i).data(c).wf(l,:)) > s);
+                  end
                 end
                 if over
                     fprintf('Pulse %d is too large\n',i);
@@ -332,10 +314,14 @@ for k = 1:length(name)
                    packdef = grpdef;
                    packdef.pulses=[];
                    packdef.pulses(1).format='wf';
-                   data=[grpdef.pulses.data];                   
-                   packdef.pulses(1).data.marker = [data.marker];
-                   packdef.pulses(1).data.wf = [data.wf];
+                   for c=1:length(grpdef.pulses(1).data)
+                     data=vertcat(grpdef.pulses.data);
+                     data=data(:,c);
+                     packdef.pulses(1).data(c).marker = [data.marker];
+                     packdef.pulses(1).data(c).wf = [data.wf];
+                     packdef.pulses(1).data(c).clk = data(1).clk;
                    % awgload/zero doesn't use anything else.
+                   end
                 else
                    packdef = grpdef; 
                 end
@@ -344,13 +330,16 @@ for k = 1:length(name)
                     zerolen = zeros(length(packdef.pulses), length(packdef.chan));
                 end
                 
+                % Actually handle the upload...
                 if isempty(strfind(ctrl, 'local'))
-                    zerolen  = awgload(packdef, ind, zerolen);
+                    zerolen = awgload(packdef, ind);
+                    zerolen=zerolen{1};
                 else
-                    zerolen = awgzero(packdef, ind, zerolen);
+                    zerolen = awgzero(packdef, ind);
+                    zerolen=zerolen{1};
                 end
                 
-                if pack
+                if pack                    
                     zerolen=repmat(zerolen(1,:)/length(grpdef.pulses),length(grpdef.pulses),1);
                 end
                 
@@ -364,8 +353,8 @@ for k = 1:length(name)
                 if isfield(grpdef.pulses(1).data,'readout')
                   readout=[];
                   for ll=1:length(grpdef.pulses)
-                    if ~isempty(grpdef.pulses(ll).data.readout)
-                      readout(:,:,ll) = grpdef.pulses(ll).data.readout;
+                    if ~isempty(grpdef.pulses(ll).data(1).readout)
+                      readout(:,:,ll) = grpdef.pulses(ll).data(1).readout;
                     end
                   end
                   if any(abs(diff(readout,[],3)) > 1e-10)
