@@ -11,10 +11,10 @@ if ischar(grp)
     grp = {grp};
 end
 
-if ~isfield(awgdata.pulsegroups,'name')
+if ~isfield(awgdata(1).pulsegroups,'name')
     names={};
 else
-    names={awgdata.pulsegroups.name};
+    names={awgdata(1).pulsegroups.name};
 end
 
 if iscell(grp)   
@@ -27,6 +27,6 @@ if iscell(grp)
         end           
     end
     grp = cell2mat(grp);
-elseif any(grp > length(awgdata.pulsegroups))
+elseif any(grp > length(awgdata(1).pulsegroups))
     awgerror('Group index too large.');
 end

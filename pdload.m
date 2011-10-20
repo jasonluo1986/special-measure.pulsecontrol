@@ -28,6 +28,7 @@ else
      i=find(times < opts,1,'last');     
      pd=pd{i};
   end
+  end
 end
     
 return
