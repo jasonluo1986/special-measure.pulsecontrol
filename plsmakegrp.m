@@ -40,7 +40,9 @@ for k = 1:length(name)
     end
     
     if exist('plslog','var')  && length(plslog) > 100
-        fprintf('Group %s has %d log entries.\n',name{k},length(plslog));
+        if ~awgdata(1).quiet
+          fprintf('Group %s has %d log entries.\n',name{k},length(plslog));
+        end
     end
     if exist('plslog','var')  && ~isempty(plslog) && ~isempty(opts.time)
         le=plsinfo_logentry(plslog,opts.time);                 
@@ -53,7 +55,9 @@ for k = 1:length(name)
     end
            
     if strfind(grpdef.ctrl, 'seq')
-        fprintf('Sequence joined groups: %s\n',sprintf('%s ',grpdef.pulses.groups{:}));
+        if ~awgdata(1).quiet
+          fprintf('Sequence joined groups: %s\n',sprintf('%s ',grpdef.pulses.groups{:}));
+        end
         for m = 1:length(grpdef.pulses.groups)
            plsmakegrp(grpdef.pulses.groups{m},ctrl,ind,opts);
         end    
@@ -87,16 +91,25 @@ for k = 1:length(name)
                 end
                 
             end
-            
-            grpdef.pulses(length(ind)+1:end) = [];
             if isfield(grpdef,'dict') && ~isempty(grpdef.dict)            
                 grpdef.dict=pdpreload(grpdef.dict,opts.time);
             end
+            
             for m = 1:length(ind)
                 
                 i = floor((ind(m)-1)/npar)+1;
                 j = mod(ind(m)-1, npar)+1;
                 
+                plsdef(m)=grpdef.pulses(i);
+            end
+
+            grpdef=rmfield(grpdef,'pulses');             
+            
+            for m = 1:length(ind)
+                
+                i = floor((ind(m)-1)/npar)+1;
+                j = mod(ind(m)-1, npar)+1;
+            
                 % transfer valid pulse dependent parameters. Interpretation of nan may not be so useful here,
                 % but should not hurt.
                 params = grpdef.params;
@@ -105,41 +118,42 @@ for k = 1:length(name)
                     params(end-size(grpdef.varpar, 2) + find(mask)) = grpdef.varpar(j, mask);
                 end
                 
-                if ~isempty(plsdef(i).trafofn)
-                    params = plsdef(i).trafofn(params);
+                if ~isempty(plsdef(m).trafofn)
+                    params = plsdef(m).trafofn(params);
                 end
                 
                 % Apply dictionary before varpars; avoids many random bugs.
-                if isfield(grpdef,'dict') && ~isempty(grpdef.dict) && strcmp(plsdef(i).format,'elem')
-                    plsdef(i)=pdapply(grpdef.dict, plsdef(i),opts.time);
-                end                
+                if isfield(grpdef,'dict') && ~isempty(grpdef.dict) && strcmp(plsdef(m).format,'elem')                    
+                    plsdef(m)=pdapply(grpdef.dict, plsdef(m),opts.time, ind(m));
+                end            
+                
                 mask = ~isnan(params);
                 % update parameters - could move to plstowf
-                if ~isempty(plsdef(i).pardef)
-                    switch plsdef(i).format
+                if ~isempty(plsdef(m).pardef)
+                    switch plsdef(m).format
                         case 'elem'
-                            pardef = plsdef(i).pardef;
+                            pardef = plsdef(m).pardef;
                             for n = 1:size(pardef, 1)
                                 if isnan(params(n))
                                     continue;
                                 end
                                 if pardef(n, 2) < 0
-                                    plsdef(i).data(pardef(n, 1)).time(-pardef(n, 2)) = params(n);
+                                    plsdef(m).data(pardef(n, 1)).time(-pardef(n, 2)) = params(n);
                                 else
-                                    plsdef(i).data(pardef(n, 1)).val(pardef(n, 2)) = params(n);
+                                    plsdef(m).data(pardef(n, 1)).val(pardef(n, 2)) = params(n);
                                 end
                             end
                             
                         case 'tab'
-                            pardef = plsdef(i).pardef;
+                            pardef = plsdef(m).pardef;
                             for n = 1:size(pardef, 1)
                                 if isnan(params(n))
                                     continue;
                                 end
                                 if pardef(n, 1) < 0
-                                    plsdef(i).data.marktab(pardef(n, 2), -pardef(n, 1)) = params(n);
+                                    plsdef(m).data.marktab(pardef(n, 2), -pardef(n, 1)) = params(n);
                                 else
-                                    plsdef(i).data.pulsetab(pardef(n, 2), pardef(n, 1)) = params(n);
+                                    plsdef(m).data.pulsetab(pardef(n, 2), pardef(n, 1)) = params(n);
                                 end
                             end
                             
@@ -148,7 +162,7 @@ for k = 1:length(name)
                     end
                 end
                 
-                grpdef.pulses(m) = plstowf(plsdef(i));
+                grpdef.pulses(m) = plstowf(plsdef(m));
                 
                 
                 if ~isempty(grpdef.varpar)
@@ -209,7 +223,7 @@ for k = 1:length(name)
                 
                 %ind not given to recursive call above, so plsmagegrp makes all pulses, specified by pulseind or default
                 % of source group. Need to reconstruct indices as used for file names by inverting unique
-                [pind, pind, pind] = unique(pg.pulseind(min(j,end),:));
+                [~, ~, pind] = unique(pg.pulseind(min(j,end),:));
                 
                 for c = 1:length(pg.pulses(1).data)
                     for i = 1:length(pg.pulseind)
@@ -221,6 +235,9 @@ for k = 1:length(name)
                             grpdef.pulses(i).xval = [];
                         else
                             for ii=1:size(pg.pulses(pind(i)).data(c).readout,1)
+                                if isempty(grpdef.pulses(pind(i)).data(c).readout)
+                                    continue;
+                                end
                                 roi=find(grpdef.pulses(pind(i)).data(c).readout(:,1) == pg.pulses(pind(i)).data(c).readout(ii,1));
                                 if ~isempty(roi)
                                     fprintf('Overwriting readout window\n');
@@ -395,7 +412,9 @@ for k = 1:length(name)
                 logentry('Uploaded group %s, revisions %i.', grpdef.name, length(plslog));
               %  fprintf(' in upload of group %s.\n', grpdef.name);
             else
-                fprintf('Skipping group %s.\n', grpdef.name);
+                if ~awgdata(1).quiet
+                  fprintf('Skipping group %s.\n', grpdef.name);
+                end
             end
 
     end

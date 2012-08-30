@@ -150,5 +150,6 @@ if plschng % pulses changed
 else
     fprintf('Didn''t update group "%s": nothing changed\n',grpdef.name);
 end
-
-fprintf('Updated group %s.\n', grpdef.name);
+if ~awgdata(1).quiet
+    fprintf('Updated group %s.\n', grpdef.name);
+end
