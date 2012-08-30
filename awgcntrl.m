@@ -1,9 +1,12 @@
 function  val = awgcntrl(cntrl, chans)
 % awgcntrl(cntrl, chans)
-% cntrl: stop, start, on off, wait, raw|amp, israw,  extoff|exton, isexton, err, clr
+% cntrl: stop, start, on off, wait, raw|amp, israw,  extoff|exton, isexton,
+% err, clr, ison
 % several commands given are processed in order.
 % isamp and isexton return a vector of length chans specifying which are
 % amp or in exton mode
+% ison returns 0 and 1 for stopped and started, respectively, and .5 if
+% waiting for trigger. 
 
 % (c) 2010 Hendrik Bluhm.  Please see LICENSE and COPYRIGHT information in plssetup.m.
 
@@ -87,6 +90,14 @@ for k = 1:size(breaks, 2);
                     end
                 end
             end
+            
+            case 'ison' %if instrument waiting for trigger, returns .5
+            val=[];
+            for a=1:length(awgdata)                                 
+                        fprintf(awgdata(a).awg, 'AWGC:RST?');
+                        val(end+1) = .5*fscanf(awgdata(a).awg,'%f');                      
+            end
+            
             
         case 'exton'    %adds external DC to outputs specified in chans
             for a=1:length(awgdata)

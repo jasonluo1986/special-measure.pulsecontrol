@@ -19,7 +19,7 @@ end
 
 % check format?
 
-if ~isempty(plsdata.pulses)
+if isfield(plsdata,'pulses') && ~isempty(plsdata.pulses)
     plsdata.pulses(plsnum) = orderfields(pulse, plsdata.pulses);
 else
     plsdata.pulses(plsnum) = pulse;

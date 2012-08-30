@@ -12,8 +12,8 @@ global awgdata;
       fprintf('AWG waveform list out of date.  Syncing.');
       awgdata(a).waveforms=cell(npls,1);
       for l=1:npls
-          r=query(awgdata(a).awg,sprintf('WLIS:NAME? %d',l-1));
-          awgdata(a).waveforms{l}=r(2:end-1);
+          r=query(awgdata(a).awg,sprintf('WLIS:NAME? %d',l-1));          
+          awgdata(a).waveforms{l}=r(2:end-2);
       end
       fprintf('..  Done.\n');
   end

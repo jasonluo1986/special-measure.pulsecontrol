@@ -38,8 +38,9 @@ switch ctrl
               val = val(ind, :);              
             end
         else
-            if ~isfield(plslog(le),'xval') % Fix for groups that have never been updated.
-                plslog(le).xval = grpdef.xval;
+            if ~isfield(plslog(le),'xval') % Fix for groups that have never been updated.       
+                p=plsmakegrp(group);
+                plslog(le).xval = vertcat(p.pulses.xval)';                
             end
             if(isfield(grpdef,'pulseind'))
                 pis=unique(grpdef.pulseind);
@@ -108,9 +109,9 @@ switch ctrl
                 val=[];
                 for l=1:length(grpdef.pulses.groups)
                     val=[val ; plsinfo('ro',grpdef.pulses.groups{l})];
-                    [u i]=unique(val(:,1));
-                    val=val(i,:);
                 end
+                [u i]=unique(val(:,1));
+                 val=val(i,:);
             else
                 if exist('zerolen','var') && size(zerolen,1) > 1
                     pd = plsmakegrp(group,'',[1 size(zerolen,1)]) ; % minor bug; assume all pulses have same readout.
@@ -153,22 +154,30 @@ switch ctrl
         end
     case 'stale'        
         ind=awggrpind(group);
-        if isempty(awgwaveforms(group))
-            val=1;
-        elseif ~isnan(ind) && isfield(awgdata(1).pulsegroups(ind),'lastupdate') && isfield(awgdata(1).pulsegroups(ind),'lastload') && ...
+        % This doesn't work correctly for sequence combined groups
+        %if isempty(awgwaveforms(group))
+        %    val=1;
+        if ~isnan(ind) && isfield(awgdata(1).pulsegroups(ind),'lastupdate') && isfield(awgdata(1).pulsegroups(ind),'lastload') && ...
                 ~isempty(awgdata(1).pulsegroups(ind).lastupdate) && ~isempty(awgdata(1).pulsegroups(ind).lastload)
             val = awgdata(1).pulsegroups(ind).lastload < awgdata(1).pulsegroups(ind).lastupdate;
         else
             load([plsdata.grpdir, 'pg_', group], 'lastupdate','plslog','grpdef');
             if(isempty(strfind(grpdef.ctrl,'seq')))
-                val = lastupdate > plslog(end).time(end);
-                if val && nargout == 0
-                    fprintf('Pulse group ''%s'' is stale.\n',group);
+                if isempty(awgwaveforms(group))
+                    val=1;
+                else
+                    val = lastupdate > plslog(end).time(end);
+                    if val && nargout == 0
+                        fprintf('Pulse group ''%s'' is stale.\n',group);
+                    end
                 end
             else
                 val = 0;
                 for i=1:length(grpdef.pulses.groups)
-                    val = val || plsinfo('stale',grpdef.pulses.groups{i});
+                    if plsinfo('stale',grpdef.pulses.groups{i})
+                        val = 1;
+                        break;
+                    end
                 end
             end
         end

@@ -1,4 +1,7 @@
 function awggroups(ind)
+% function awggroups(ind)
+% Print all awggroups if ind is absent, or the names of groups specified
+% by ind otherwise.
 
 % (c) 2010 Hendrik Bluhm.  Please see LICENSE and COPYRIGHT information in plssetup.m.
 

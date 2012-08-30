@@ -1,6 +1,6 @@
 function awgadd(groups)
 % awgadd(groups)
-% Add groups to end of sequence. Store group name and target index in 
+% Add groups to end of sequence. Store group name and target index in
 % awgdata.pulsgroups.name, seqind.
 % For sequence combined groups (only), pulseind is a 2D array.  Each
 % row corresponds to a groups, each column to a varpar in this group.
@@ -25,14 +25,16 @@ for k = 1:length(groups)
     load([plsdata.grpdir, 'pg_', groups{k}]);
     
     while plsinfo('stale',groups{k})
-        fprintf('Latest pulses of group %s not loaded; %s > %s.\n', groups{k}, ...
+        if ~awgdata(1).quiet
+          fprintf('Latest pulses of group %s not loaded; %s > %s.\n', groups{k}, ...
             datestr(lastupdate), datestr(plslog(end).time(end)));
+        end
         tstart=toc;
         plsmakegrp(groups{k},'upload');
         ts2 = toc;
         awgcntrl('wait');
-      %  fprintf('Load time=%f secs, wait time=%f\n',toc-tstart,toc-ts2);
-        load([plsdata.grpdir, 'pg_', groups{k}]);
+        %  fprintf('Load time=%f secs, wait time=%f\n',toc-tstart,toc-ts2);
+        load([plsdata.grpdir, 'pg_', groups{k} '.mat']);
     end
     
     
@@ -41,10 +43,15 @@ for k = 1:length(groups)
         
         % retrieve channels of component groups
         clear chan;
+        lastload = 0;
         for m = 1:length(grpdef.pulses.groups)
             gd=plsinfo('gd', grpdef.pulses.groups{m});
+            pl=plsinfo('log', grpdef.pulses.groups{m});
+            if pl(end).time > lastload
+                lastload = pl(end).time;
+            end
             rf={'varpar'}; % Required fields that may be missing
-            for qq=1:length(rf)
+            for qq=1:length(rf) % Put in empty copies of all required fields.
                 if ~isfield(gd,rf{qq})
                     gd=setfield(gd,rf{qq},[]);
                 end
@@ -85,12 +92,15 @@ for k = 1:length(groups)
             end
         end
         
+        if ~exist('zerolen','var')  % For sequence combined groups, getting this is hard.
+              zerolen = plsinfo('zl',grpdef.name);
+        end
         if isempty(gind) % group not loaded yet, extend sequence
             
             gind = length(awgdata(a).pulsegroups)+1;
             awgdata(a).pulsegroups(gind).name = grpdef.name;
             awgdata(a).pulsegroups(gind).seqind = startline;
-            awgdata(a).pulsegroups(gind).lastupdate = lastupdate; 
+            awgdata(a).pulsegroups(gind).lastupdate = lastupdate;
             awgdata(a).pulsegroups(gind).npulse = [npls usetrig];
             if strfind(grpdef.ctrl,'pack')
                 awgdata(a).pulsegroups(gind).nline = 1+usetrig;
@@ -112,9 +122,9 @@ for k = 1:length(groups)
             else
                 zlmult=1;
             end
-        if any(awgdata(a).pulsegroups(gind).nrep ~= grpdef.nrep) || ...
-           any(any(awgdata(a).pulsegroups(gind).readout ~= plslog(end).readout)) || ...
-           any(any(awgdata(a).pulsegroups(gind).zerolen ~= zerolen)) % nrep or similar changed
+            if any(awgdata(a).pulsegroups(gind).nrep ~= grpdef.nrep) || ...
+                    (isfield(plslog(end),'readout') && (any(any(awgdata(a).pulsegroups(gind).readout ~= plslog(end).readout)))) || ...
+                    any(any(awgdata(a).pulsegroups(gind).zerolen ~= zerolen)) % nrep or similar changed
                 dosave = 1;
             end
         end
@@ -128,22 +138,35 @@ for k = 1:length(groups)
         end
         
         
+        % Cache frequently used information in awgdata
         awgdata(a).pulsegroups(gind).nrep = grpdef.nrep;
-    awgdata(a).pulsegroups(gind).lastload = plslog(end).time(1);
-    awgdata(a).pulsegroups(gind).zerolen = zerolen;  % Cache some handy stuff here.
-    awgdata(a).pulsegroups(gind).readout=plslog(end).readout;
+        if seqmerge
+            awgdata(a).pulsegroups(gind).lastload = lastload;
+        else
+            awgdata(a).pulsegroups(gind).lastload = plslog(end).time(1);
+        end
+    
+        awgdata(a).pulsegroups(gind).zerolen = zerolen; 
+        if isfield(plslog(end),'readout')
+          awgdata(a).pulsegroups(gind).readout=plslog(end).readout;
+        else
+          awgdata(a).pulsegroups(gind).readout = plsinfo('ro',grpdef.name);
+        end
         
-        if usetrig
-            fprintf(awgdata(a).awg, sprintf('SEQ:ELEM%d:WAV1 "trig_%08d"', startline, awgdata(a).triglen));
-            for j = 2:nchan
-                fprintf(awgdata(a).awg, sprintf('SEQ:ELEM%d:WAV%d "zero_%08d_%d"', startline, j, awgdata(a).triglen, awgdata(a).zerochan(j)));
+        if usetrig            
+            for j = 1:nchan
+                if mod(j,2) == 1
+                  fprintf(awgdata(a).awg, sprintf('SEQ:ELEM%d:WAV%d "trig_%08d"', startline, j, awgdata(a).triglen));
+                else
+                  fprintf(awgdata(a).awg, sprintf('SEQ:ELEM%d:WAV%d "zero_%08d_%d"', startline, j, awgdata(a).triglen, awgdata(a).zerochan(j)));
+                end
             end
             if isfield(awgdata(a),'slave') && ~isempty(awgdata(a).slave) && (awgdata(a).slave)
                 fprintf(awgdata(a).awg, sprintf('SEQ:ELEM%d:TWAIT 1\n', startline));
-            end        
+            end
         end
         
-      
+        
         for i = 1:npls
             ind = i-1 + startline + usetrig;
             if ~seqmerge % pulses combined here.
@@ -164,9 +187,9 @@ for k = 1:length(groups)
                     for j = 1:length(chan{m}) % channels of component groups
                         ch = find(awgdata(a).chans == chan{m}(j));
                         if ~isempty(ch)
-                        %if 1 % zero replacement not implemented
-                          fprintf(awgdata(a).awg, sprintf('SEQ:ELEM%d:WAV%d "%s_%05d_%d"', ind, ch, ...
-                              grpdef.pulses.groups{m}, grpdef.pulseind(m, i), ch));
+                            %if 1 % zero replacement not implemented
+                            fprintf(awgdata(a).awg, sprintf('SEQ:ELEM%d:WAV%d "%s_%05d_%d"', ind, ch, ...
+                                grpdef.pulses.groups{m}, grpdef.pulseind(m, i), ch));
                         else
                             error('This won''t work');
                         end
@@ -192,11 +215,11 @@ for k = 1:length(groups)
                 dosave = 1;
                 awgdata(a).seqpulses(ind) = grpdef.pulses(grpdef.pulseind(i));
             end
-            if ~mod(i, 100)
+            if ~mod(i, 100) && ~awgdata(1).quiet
                 fprintf('%i/%i pulses added.\n', i, npls);
             end
         end
-    %fprintf('Group load time: %g secs\n',toc-gstart);
+        %fprintf('Group load time: %g secs\n',toc-gstart);
         
         jstart=toc;
         % event jumps
@@ -223,14 +246,16 @@ for k = 1:length(groups)
     %fprintf('Wait time: %f secs; total time %f secs\n',toc-wstart,toc-astart);
     nerr=0;
     for a=1:length(awgdata(a))
-      err=query(awgdata(a).awg, 'SYST:ERR?');    
-      if ~isempty(strfind(err, 'No error'))
-        nerr=nerr+1;
-      end
+        err=query(awgdata(a).awg, 'SYST:ERR?');
+        if ~isempty(strfind(err, 'No error'))
+            nerr=nerr+1;
+        end
     end
-    if nerr == 0
-        fprintf('Added group %s on index %i. %s', grpdef.name, gind, err);      
-        logentry('Added group %s on index %i.', grpdef.name, gind);        
+    if nerr == 0 
+        if ~awgdata(1).quiet
+          fprintf('Added group %s on index %i. %s', grpdef.name, gind, err);
+        end
+        logentry('Added group %s on index %i.', grpdef.name, gind);
     end
 end
 if dosave

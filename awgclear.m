@@ -50,10 +50,16 @@ end
 
 if strcmp(groups,'unused')
     g=awgwaveforms;
-    g2={awgdata(1).pulsegroups.name};
+    if ~isempty(awgdata(1).pulsegroups)
+      g2={awgdata(1).pulsegroups.name};
+    else
+      g2={};
+    end
     groups=setdiff(g,g2);
-    for i=1:length(groups)
-      fprintf('Unloading %s\n',groups{i});
+    if ~awgdata(1).quiet
+        for i=1:length(groups)
+            fprintf('Unloading %s\n',groups{i});
+        end
     end
 end
 
@@ -91,7 +97,8 @@ for k = 1:length(groups)
 plslog(end).time(end+1) = -now;
 save([plsdata.grpdir, 'pg_', groups{k}], '-append', 'plslog');
 logentry('Cleared group %s.', groups{k});
-fprintf('Cleared group %s.\n', groups{k});
-
+if ~awgdata(1).quiet
+    fprintf('Cleared group %s.\n', groups{k});
+end
 awgrm(groups{k});
 end

@@ -1,6 +1,7 @@
 function awgswap(name)
 global awgdata;
 global smdata;
+
 % strategy: store alternative awgdata sets in awgdata(1).alternates
 %  store current alternate in awgdata.current
 if ~exist('name') || isempty('name')
@@ -28,7 +29,16 @@ if ~isfield(awgdata(1).alternates,name)
 end
 
 if ~strcmp(name,'current')
-    fprintf('WARNING: Changing awg configuration.  Some\n awgclear(''pack'',''paranoid'')\n is probably in order\n');
+    if ~isempty(awgdata(1).pulsegroups)
+      grps={awgdata(1).pulsegroups.name};        
+      fprintf('WARNING: Changing awg configuration. Making best effort to restore groups.');
+    else
+      grps={};
+    end
+    awgrm('all');
+    awgclear('all');    
+else
+    grps={};
 end
 
 % Load the new setting.
@@ -76,7 +86,11 @@ if isempty(slaves)
 else
   smdata.channels(29).instchan(1) = insts(slaves(1));
 end
-
+if ~isempty(grps)
+    awgrm('all');
+    awgclear('unused');
+    awgadd(grps);
+end
 end
 
 function s = nicermfield(s, fields)

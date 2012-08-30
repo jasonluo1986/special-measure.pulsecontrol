@@ -20,12 +20,12 @@ global plsdata;
 
 tic;
 if strcmp(computer, 'GLNX86')
-    plsdata.datafile = '~ygroup/qDots/awg_pulses/plsdata_1110.mat';
+    plsdata.datafile = '~ygroup/qDots/awg_pulses/plsdata_2012_08_22.mat';
 else
     if exist('z:/qDots','file')
-      plsdata.datafile = 'z:/qDots/awg_pulses/plsdata_1110.mat';
+      plsdata.datafile = 'z:/qDots/awg_pulses/plsdata_2012_08_22.mat';
     else
-      plsdata.datafile = 'y:/qDots/awg_pulses/plsdata_1110.mat';  
+      plsdata.datafile = 'y:/qDots/awg_pulses/plsdata_2012_08_22.mat';  
     end
 end
 plssync('load');

@@ -30,9 +30,9 @@ for a=1:length(awgdata)
     % create trig pulse (and corresponding 0) if waveform list empty.
     if query(awgdata(a).awg, 'WLIS:SIZE?', '%s\n', '%i') == 25 % nothing loaded (except predefined)
         zdata=zeros(1,awgdata(a).triglen);
-        zmarker=repmat(1,1,awgdata(a).triglen);
+        zmarker=repmat(1,1,awgdata(a).triglen); % channel 1&3 marker 1
         awgloadwfm(a,zdata,zmarker,sprintf('trig_%08d',awgdata(a).triglen),1,1);
-        
+        zmarker=zeros(1,awgdata(a).triglen);        
         for l=1:length(offsets)
             awgloadwfm(a,zdata,zmarker,sprintf('zero_%08d_%d',awgdata(a).triglen,l),offsetchan(l),1);
         end
